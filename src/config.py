@@ -3,6 +3,8 @@ import os
 import re
 from pathlib import Path
 
+import yaml
+
 # Workspace paths (inside Docker container)
 WORKSPACE = Path("/workspace")
 MEMORY_DIR = WORKSPACE / "memory"
@@ -33,11 +35,6 @@ OLLAMA_URL: str = f"http://{OLLAMA_HOST}:{OLLAMA_PORT}"
 OPENCODE_BIN: str = os.getenv("OPENCODE_BIN", "opencode")
 MJ_TIMEOUT: int = int(os.getenv("MJ_TIMEOUT", "180"))
 NPC_TIMEOUT: int = int(os.getenv("NPC_TIMEOUT", "60"))
-
-# Channels Discord (noms par défaut)
-RP_CHANNEL: str = os.getenv("RP_CHANNEL", "rp")
-GENERAL_CHANNEL: str = os.getenv("GENERAL_CHANNEL", "général")
-MJ_SCREEN_CHANNEL: str = os.getenv("MJ_SCREEN_CHANNEL", "mj-screen")
 
 # Background tasks — intervals in minutes, 0 = disabled
 WATCHDOG_INTERVAL: int = int(os.getenv("WATCHDOG_INTERVAL", "15"))
@@ -121,4 +118,28 @@ def load_workflows() -> dict[str, dict]:
             "output_node": str(meta.get("output_node", "9")),
         }
 
+    return result
+
+
+_CHANNEL_DEFAULTS: dict[str, str] = {
+    "rp": "rp",
+    "general": "général",
+    "mj_screen": "mj-screen",
+}
+
+
+def load_channels(guild_id: str | None = None) -> dict[str, str]:
+    """
+    Retourne les noms de channels pour un serveur donné.
+    Lit channels.yml à chaque appel (le MJ peut modifier ce fichier à chaud).
+    Fusionne : defaults → section "default" → section "guilds.<guild_id>".
+    """
+    try:
+        data = yaml.safe_load((CONFIG_DIR / "channels.yml").read_text(encoding="utf-8")) or {}
+    except Exception:
+        data = {}
+
+    result = {**_CHANNEL_DEFAULTS, **data.get("default", {})}
+    if guild_id:
+        result.update(data.get("guilds", {}).get(str(guild_id), {}))
     return result

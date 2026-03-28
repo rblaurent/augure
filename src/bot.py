@@ -161,7 +161,7 @@ async def on_message(message: discord.Message) -> None:
     is_rp_channel = (
         not is_dm
         and hasattr(message.channel, "name")
-        and message.channel.name.lower() == config.RP_CHANNEL.lower()
+        and message.channel.name.lower() == config.load_channels(str(message.guild.id))["rp"].lower()
     )
 
     logger.info(

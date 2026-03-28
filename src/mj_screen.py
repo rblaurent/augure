@@ -44,20 +44,16 @@ class MJScreen:
 
     def __init__(self, client: discord.Client) -> None:
         self._client = client
-        # guild_id -> channel | None
-        self._channels: dict[str, discord.TextChannel | None] = {}
 
     async def _get_channel(self, guild_id: str) -> discord.TextChannel | None:
-        if guild_id in self._channels:
-            return self._channels[guild_id]
+        # Pas de cache — channels.yml peut être modifié à chaud par le MJ
+        mj_screen_name = config.load_channels(guild_id)["mj_screen"].lower()
         for guild in self._client.guilds:
             if str(guild.id) != guild_id:
                 continue
             for ch in guild.text_channels:
-                if ch.name.lower() == config.MJ_SCREEN_CHANNEL.lower():
-                    self._channels[guild_id] = ch
+                if ch.name.lower() == mj_screen_name:
                     return ch
-        self._channels[guild_id] = None
         return None
 
     async def post(self, guild_id: str, embed_type: str, content: str, title: str = "") -> None:

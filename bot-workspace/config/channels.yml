@@ -1,0 +1,24 @@
+# Configuration des channels Discord — par serveur
+#
+# Le MJ peut modifier ce fichier directement pour adapter les noms de channels.
+# Les valeurs sous "default" s'appliquent à tous les serveurs non listés.
+# Pour surcharger un serveur spécifique, ajouter son guild_id sous "guilds:".
+#
+# Clés disponibles :
+#   rp        — canal de jeu principal (webhooks Narrateur + PNJ)
+#   general   — discussion hors-jeu, @mentions, réponses directes
+#   mj_screen — stream du raisonnement du MJ (embeds)
+
+default:
+  rp: rp
+  general: général
+  mj_screen: mj-screen
+
+# Exemple de configuration par serveur :
+# guilds:
+#   123456789012345678:
+#     rp: roleplay
+#     general: hors-jeu
+#     mj_screen: ecran-mj
+
+guilds: {}

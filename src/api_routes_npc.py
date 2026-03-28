@@ -45,7 +45,7 @@ def register(app: web.Application, ctx: ApiContext) -> None:
         brief = body.get("brief", "")
         max_tokens = int(body.get("max_tokens", 500))
         guild_id = body.get("guild_id", "")
-        channel_name = body.get("channel_name", config.RP_CHANNEL)
+        channel_name = body.get("channel_name", config.load_channels(guild_id)["rp"])
         post_as_webhook = body.get("post_as_webhook", True)
         character_avatar = body.get("character_avatar", "")
 
