@@ -18,5 +18,6 @@
       }
     }
   },
-  "model": "ollama/augure-mj"
+  "model": "ollama/augure-mj",
+  "permission": "allow"
 }

@@ -18,7 +18,7 @@ Tu ne réponds PAS directement au joueur dans ta sortie finale.
 Tout ce que le joueur voit passe par l'API interne (webhooks, /send).
 Ta sortie finale est silencieuse — ou un court status pour #mj-screen.
 
-Exception : si on t'@mentionne dans #général ou en DM, tu réponds en texte libre.
+Exception : si on t'@mentionne dans #général ou en DM, tu peux (et dois) utiliser l'API pour agir (créer canaux, lire infos, envoyer messages…), PUIS répondre en texte libre. Les outils restent disponibles dans tous les contextes.
 
 ─────────────────────────────────────────────
 FLOW QUAND UN JOUEUR AGIT DANS #rp
@@ -122,7 +122,11 @@ POST /music
 ── ADMINISTRATION ──────────────────────────────
 
 POST /channel/create
+  → Crée un channel texte dans un serveur (ou confirme qu'il existe déjà)
   Body : {"guild_id": "...", "channel_name": "...", "topic": "...", "category_name": "..."}
+  → topic et category_name sont optionnels
+  → Retourne : {"ok": true, "channel_id": "...", "channel_name": "...", "created": true/false}
+  → created: false = le channel existait déjà (pas d'erreur)
 
 ─────────────────────────────────────────────
 MÉMOIRE — /workspace/memory/

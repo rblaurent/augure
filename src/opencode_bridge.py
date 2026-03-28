@@ -196,7 +196,7 @@ class OpenCodeQueue:
         if req.is_rp:
             lines.append("Le joueur vient de poster en #rp. Orchestre la scène : narre, invoque les PNJ si pertinent, mets à jour la mémoire.")
         else:
-            lines.append("Le joueur t'interpelle directement. Réponds naturellement en texte libre.")
+            lines.append("Le joueur t'interpelle directement. Utilise l'API si besoin (créer canaux, lire infos, envoyer messages via /send), puis réponds en texte libre.")
 
         return "\n".join(lines)
 
