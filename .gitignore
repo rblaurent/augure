@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+bot-workspace/memory/
+bot-workspace/music/*.mp3
+bot-workspace/custom/*
+!bot-workspace/custom/.gitkeep
+
+# Runtime config (seeded from seeds/ on first start, modified by MJ at runtime)
+bot-workspace/config/identity.md
+bot-workspace/config/guides.md

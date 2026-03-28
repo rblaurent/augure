@@ -1,0 +1,23 @@
+services:
+  augure:
+    build: .
+    container_name: augure
+    restart: always
+    env_file: .env
+    volumes:
+      - ./bot-workspace/memory:/workspace/memory
+      - ./bot-workspace/config:/workspace/config
+      - ./bot-workspace/workflows:/workspace/workflows:ro
+      - ./bot-workspace/skills:/workspace/skills
+      - ./bot-workspace/custom:/workspace/custom
+      - ./bot-workspace/music:/workspace/music
+      - opencode_config:/home/botuser/.config/opencode
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # host.docker.internal → Ollama (:11434) et ComfyUI (:8188) sur l'hôte Windows
+
+volumes:
+  opencode_config:
+    # Volume persistant pour la config OpenCode (clés API, préférences).
+    # Première utilisation : docker-compose run --rm augure opencode
+    # Puis configure les clés API dans l'interface.
