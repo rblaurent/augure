@@ -201,18 +201,28 @@ async def on_message(message: discord.Message) -> None:
         content = "(action sans texte)"
 
     emojis = config.load_bot_settings()["emojis"]
-    await message.add_reaction(emojis["processing"])
+    await message.add_reaction(emojis["queued"])
     try:
         if is_rp_channel:
             await _handle_rp_message(message, content, guild_id)
         else:
             await _handle_general_message(message, content, is_dm, guild_id)
-        await message.remove_reaction(emojis["processing"], client.user)
+        for e in (emojis["queued"], emojis["processing"]):
+            if e:
+                try:
+                    await message.remove_reaction(e, client.user)
+                except discord.HTTPException:
+                    pass
         if emojis["success"]:
             await message.add_reaction(emojis["success"])
     except Exception:
         try:
-            await message.remove_reaction(emojis["processing"], client.user)
+            for e in (emojis["queued"], emojis["processing"]):
+                if e:
+                    try:
+                        await message.remove_reaction(e, client.user)
+                    except discord.HTTPException:
+                        pass
             await message.add_reaction(emojis["error"])
         except discord.HTTPException:
             pass
@@ -278,6 +288,15 @@ async def _handle_rp_message(message: discord.Message, content: str, guild_id: s
         is_rp=True,
     )
 
+    emojis = config.load_bot_settings()["emojis"]
+    await req.started.wait()
+    if emojis["processing"] and emojis["processing"] != emojis["queued"]:
+        try:
+            await message.remove_reaction(emojis["queued"], client.user)
+            await message.add_reaction(emojis["processing"])
+        except discord.HTTPException:
+            pass
+
     try:
         await asyncio.wait_for(req.future, timeout=config.MJ_TIMEOUT * 2)
     except asyncio.TimeoutError:
@@ -317,6 +336,15 @@ async def _handle_general_message(
         guild_id=guild_id,
         is_rp=False,
     )
+
+    emojis = config.load_bot_settings()["emojis"]
+    await req.started.wait()
+    if emojis["processing"] and emojis["processing"] != emojis["queued"]:
+        try:
+            await message.remove_reaction(emojis["queued"], client.user)
+            await message.add_reaction(emojis["processing"])
+        except discord.HTTPException:
+            pass
 
     try:
         async with message.channel.typing():

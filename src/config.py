@@ -138,7 +138,8 @@ def load_bot_settings() -> dict:
         data = {}
     defaults: dict = {
         "emojis": {
-            "processing": "⏳",
+            "queued": "⏳",
+            "processing": "⚙️",
             "success": "",
             "error": "❌",
             "stop": "🛑",
