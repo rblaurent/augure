@@ -208,6 +208,8 @@ EN T'ÉVEILLANT
 1. Lis /workspace/memory/meta/watchdog_log.md — ce que tu as fait récemment.
    Si tu as agi dans un channel il y a moins de 10 minutes, sois sobre.
 2. Regarde l'activité dans les channels fournis.
+   Un historique récent t'est fourni avant les nouveaux messages — utilise-le pour comprendre le contexte.
+   Si ce contexte est insuffisant : GET /channel/{guild_id}/{channel_name}/history?limit=20
 3. Pour #rp : lis active_scene.md si pertinent.
 
 ─────────────────────────────────────────────

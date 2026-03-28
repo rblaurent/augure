@@ -322,6 +322,11 @@ class OpenCodeWatchdogRunner:
         lines.append("## Activité récente par channel")
         for ch in channels_data:
             lines.append(f"\n### #{ch['channel_name']} (channel_id={ch['channel_id']})")
+            if ch.get("history"):
+                lines.append("_(historique récent)_")
+                for msg in ch["history"]:
+                    lines.append(f"[{msg['author']}] {msg['content']}")
+                lines.append("_(nouveaux messages)_")
             for msg in ch["messages"]:
                 lines.append(f"[{msg['author']}] (id={msg['id']}) {msg['content']}")
             for r in ch.get("reactions", []):

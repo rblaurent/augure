@@ -62,10 +62,18 @@ class WatchdogService:
 
                 if new_messages:
                     new_messages.reverse()
+                    history = []
+                    async for msg in channel.history(limit=10, before=discord.Object(id=int(last_id))):
+                        history.append({
+                            "author": msg.author.display_name,
+                            "content": msg.content,
+                        })
+                    history.reverse()
                     channels_data.append({
                         "channel_name": channel.name,
                         "channel_id": channel_id,
                         "last_seen_id": last_seen_id,
+                        "history": history,
                         "messages": new_messages,
                     })
 
