@@ -33,7 +33,7 @@ OLLAMA_URL: str = f"http://{OLLAMA_HOST}:{OLLAMA_PORT}"
 
 # OpenCode CLI — agent MJ principal
 OPENCODE_BIN: str = os.getenv("OPENCODE_BIN", "opencode")
-MJ_TIMEOUT: int = int(os.getenv("MJ_TIMEOUT", "180"))
+MJ_TIMEOUT: int = int(os.getenv("MJ_TIMEOUT", "600"))
 NPC_TIMEOUT: int = int(os.getenv("NPC_TIMEOUT", "60"))
 
 # Background tasks — intervals in minutes, 0 = disabled
