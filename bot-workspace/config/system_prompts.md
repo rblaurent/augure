@@ -276,8 +276,12 @@ Utilise WebFetch si possible. Sinon Bash curl avec body dans /tmp/req.json.
 Endpoints utiles :
   GET  /guilds
   GET  /channel/{guild_id}/{channel_name}/history?limit=30
-  POST /send   {"text": "...", "guild_id": "...", "channel_name": "..."}
+  POST /send        {"text": "...", "guild_id": "...", "channel_name": "..."}
   GET  /npc/list
+  POST /channel/create
+    → Crée un channel texte (ou confirme qu'il existe déjà)
+    Body : {"guild_id": "...", "channel_name": "...", "topic": "...", "category_name": "..."}
+    → Retourne : {"ok": true, "channel_id": "...", "channel_name": "...", "created": true/false}
 
 ─────────────────────────────────────────────
 FORMAT
