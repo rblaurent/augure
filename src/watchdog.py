@@ -52,13 +52,15 @@ class WatchdogService:
                 new_messages: list[dict] = []
                 last_seen_id = None
                 async for msg in channel.history(limit=20, after=discord.Object(id=last_id)):
+                    last_seen_id = msg.id
+                    if msg.author == self._client.user:
+                        continue
                     new_messages.append({
                         "id": str(msg.id),
                         "author": msg.author.display_name,
                         "content": msg.content,
                         "timestamp": msg.created_at.isoformat(),
                     })
-                    last_seen_id = msg.id
 
                 if new_messages:
                     new_messages.reverse()
