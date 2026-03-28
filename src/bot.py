@@ -15,6 +15,7 @@ from .comfyui_bridge import ComfyUIBridge
 from .memory_manager import MemoryManager
 from .mj_screen import MJScreen
 from .npc_invoker import NPCInvoker
+from .maintenance import MaintenanceService
 from .opencode_bridge import OpenCodeQueue, OpenCodeWatchdogRunner
 from .sanitizer import OutputSanitizer
 from .suno_bridge import SunoBridge
@@ -50,6 +51,7 @@ sanitizer = OutputSanitizer()
 mj_queue = OpenCodeQueue(vram, mj_screen)
 watchdog_runner = OpenCodeWatchdogRunner(vram, mj_screen)
 watchdog_svc = WatchdogService(client, memory, watchdog_runner)
+maintenance_svc = MaintenanceService()
 
 _SLEEP_FILE = config.MEMORY_DIR / "meta" / "sleep.flag"
 
@@ -100,6 +102,10 @@ async def on_ready() -> None:
     if config.WATCHDOG_INTERVAL > 0:
         asyncio.create_task(watchdog_svc.run_loop())
         logger.info("Watchdog MJ démarré (intervalle : %d min)", config.WATCHDOG_INTERVAL)
+
+    if config.MAINTENANCE_INTERVAL > 0:
+        asyncio.create_task(maintenance_svc.run_loop())
+        logger.info("Maintenance démarrée (intervalle : %d min)", config.MAINTENANCE_INTERVAL)
 
 
 @client.event

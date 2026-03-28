@@ -18,11 +18,20 @@ Exemples : `narrer`, `orchestrer`, `briefer-pnj`, `creer-pnj`, `creer-lieu`, etc
 ```
 /workspace/custom/.opencode/skills/<nom>/SKILL.md
 ```
-Créés par le MJ sur demande de l'admin. Gitignorés — persistent dans le container.
+Créés par le MJ via `/creer-skill`. Gitignorés — persistent dans le container.
 Auto-découverts grâce au flag `--add-dir /workspace/custom` passé à OpenCode.
 
 **Règle** : chaque skill est un répertoire contenant exactement un fichier `SKILL.md`.
-Le nom du répertoire = le nom du skill.
+Le nom du répertoire = le nom du skill (celui qu'on tape après `/`).
+
+---
+
+## Lister les skills disponibles
+
+```bash
+ls /workspace/skills/
+ls /workspace/custom/.opencode/skills/
+```
 
 ---
 
@@ -43,32 +52,75 @@ $ARGUMENTS est remplacé par ce que l'utilisateur tape après /nom-du-skill.
 | Champ | Valeur | Effet |
 |-------|--------|-------|
 | `name` | string | Nom du skill (doit correspondre au nom du répertoire) |
-| `description` | string | Description du skill |
+| `description` | string | Description affichée dans la liste des skills |
+
+Tous les champs sont optionnels sauf `name` et `description`.
+
+---
+
+## Syntaxe spéciale dans les instructions
+
+### Arguments passés par l'utilisateur
+```
+$ARGUMENTS
+```
+Remplacé par tout ce que l'utilisateur tape après le nom du skill.
+Exemple : `/lire-logs last` → `$ARGUMENTS` vaut `last`.
+
+---
+
+## Créer ou modifier un skill
+
+**Utiliser le skill `/creer-skill`** pour créer un nouveau skill pas à pas.
+
+**Manuellement** :
+1. `Bash(mkdir -p /workspace/custom/.opencode/skills/<nom>)`
+2. `Write` → `/workspace/custom/.opencode/skills/<nom>/SKILL.md`
+3. Le frontmatter doit être du YAML valide (pas de tabulations, indentation 2 espaces)
+
+**Modifier** :
+1. `Read` → `/workspace/skills/<nom>/SKILL.md` (intégré) ou `/workspace/custom/.opencode/skills/<nom>/SKILL.md` (custom)
+2. `Edit` pour modifier
+
+**Lister** :
+- `Glob(/workspace/skills/*/SKILL.md)` pour les skills intégrés
+- `Glob(/workspace/custom/.opencode/skills/*/SKILL.md)` pour les skills custom
 
 ---
 
 ## Ce que le MJ peut faire
 
-- Lire les skills : `Read /workspace/skills/<nom>/SKILL.md`
-- Modifier les skills custom : `Edit /workspace/custom/.opencode/skills/<nom>/SKILL.md`
-- Créer un skill custom : `Bash(mkdir -p ...)` + `Write`
-- Lister les skills : `Glob(/workspace/skills/*/SKILL.md)`
-
-**Modifier les skills intégrés** (`/workspace/skills/`) : admin uniquement.
+- ✅ Créer des skills custom : `mkdir -p` via Bash + Write dans `/workspace/custom/.opencode/skills/`
+- ✅ Lire et modifier des skills custom existants : Read + Edit
+- ✅ Lister les skills : Glob sur les deux emplacements
+- ❌ Modifier les skills intégrés (`/workspace/skills/`) sans permission de l'admin
 
 ---
 
-## Lister les skills disponibles
+## Exemples
 
-```bash
-ls /workspace/skills/
-ls /workspace/custom/.opencode/skills/
+### Skill minimal
+```markdown
+---
+name: bonjour
+description: Dit bonjour avec le nom passé en argument
+---
+
+Dis bonjour à $ARGUMENTS de façon chaleureuse.
 ```
+Invocation : `/bonjour Joueur`
 
+### Skill avec procédure complexe
+```markdown
+---
+name: resoudre-combat
+description: Résoudre un combat selon les règles maison — passer les participants en argument
 ---
 
-## Créer un skill custom
+# Combat : $ARGUMENTS
 
-1. `Bash(mkdir -p /workspace/custom/.opencode/skills/<nom>)`
-2. `Write` → `/workspace/custom/.opencode/skills/<nom>/SKILL.md`
-3. Le frontmatter doit être du YAML valide (pas de tabulations, indentation 2 espaces)
+## Procédure
+1. Lire les fiches des participants dans /workspace/memory/characters/
+2. Appliquer les règles de /workspace/config/regles_combat.md
+3. Narrer le résultat via skill narrer
+```

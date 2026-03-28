@@ -38,6 +38,7 @@ NPC_TIMEOUT: int = int(os.getenv("NPC_TIMEOUT", "60"))
 
 # Background tasks — intervals in minutes, 0 = disabled
 WATCHDOG_INTERVAL: int = int(os.getenv("WATCHDOG_INTERVAL", "15"))
+MAINTENANCE_INTERVAL: int = int(os.getenv("MAINTENANCE_INTERVAL", "60"))
 
 # Access control — admin users only (comma-separated Discord user IDs)
 ADMIN_USER_IDS: set[str] = set(
