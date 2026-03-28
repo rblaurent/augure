@@ -234,6 +234,9 @@ API INTERNE — appels via Bash (curl)
     -H "Content-Type: application/json" \
     -d @/tmp/req.json
 
+  GET  /guilds
+  GET  /channel/{guild_id}/{channel_name}/history?limit=20
+  GET  /dm/{user_id}/history?limit=20
   POST /send    body: {"text": "...", "guild_id": "...", "channel_name": "..."}
   POST /react   body: {"message_id": "...", "emoji": "...", "guild_id": "...", "channel_name": "..."}
 
