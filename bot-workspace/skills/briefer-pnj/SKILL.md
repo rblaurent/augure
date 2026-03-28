@@ -54,4 +54,8 @@ RÈGLES :
 1. Le MJ relit la réponse
 2. Si elle est cohérente — poster via webhook avec le nom et avatar du PNJ
 3. Si elle déraille — le MJ peut la reformuler ou relancer le sub-agent
-4. Mettre à jour "Historique des interactions" dans la fiche du PNJ
+4. Mettre à jour la fiche du PNJ (Edit sur memory/characters/{nom}.md) :
+   - Ajouter à "Historique des interactions" : [date] + résumé de l'échange
+   - Mettre à jour "Ce que [NOM] sait" si le PNJ a appris quelque chose de nouveau
+   - Mettre à jour les Objectifs si le PNJ a avancé ou changé de cap
+   - Noter l'état émotionnel actuel si pertinent (ex: "méfiant envers le joueur depuis l'incident")

@@ -30,4 +30,10 @@ if [ ! -f /workspace/config/guides.md ] && [ -f /workspace/config/seeds/guides.m
     echo "Seeded config/guides.md"
 fi
 
+# Seed style.md on first start
+if [ ! -f /workspace/config/style.md ] && [ -f /workspace/config/seeds/style.md ]; then
+    cp /workspace/config/seeds/style.md /workspace/config/style.md
+    echo "Seeded config/style.md"
+fi
+
 exec python -m src.bot

@@ -38,8 +38,9 @@ du joueur, en ouverture de scène, en transition entre deux moments.
 - Ne pas surqualifier ("magnifique", "incroyable", "époustouflant") — montrer, pas dire
 
 ## Workflow
-1. Écrire le brouillon dans /tmp/draft.md
-2. Relire avec Read
-3. Vérifier contre les interdits ci-dessus
-4. Corriger si nécessaire
-5. Poster via webhook "Narrateur" (POST /channel/{guild_id}/{channel}/post)
+1. Lire /workspace/config/style.md si pas encore lu dans cette session
+2. Écrire le brouillon dans /tmp/draft.md en respectant les réglages de style.md
+3. Relire avec Read
+4. Vérifier contre les interdits ci-dessus ET contre les exemples À ÉVITER de style.md
+5. Corriger si nécessaire
+6. Poster via webhook "Narrateur" (POST /channel/{guild_id}/{channel}/post)
