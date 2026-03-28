@@ -12,6 +12,8 @@ services:
       - ./bot-workspace/custom:/workspace/custom
       - ./bot-workspace/music:/workspace/music
       - opencode_config:/home/botuser/.config/opencode
+    ports:
+      - "8765:8765"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # host.docker.internal → Ollama (:11434) et ComfyUI (:8188) sur l'hôte Windows
