@@ -200,17 +200,20 @@ async def on_message(message: discord.Message) -> None:
     if not content and is_rp_channel:
         content = "(action sans texte)"
 
-    await message.add_reaction("⏳")
+    emojis = config.load_bot_settings()["emojis"]
+    await message.add_reaction(emojis["processing"])
     try:
         if is_rp_channel:
             await _handle_rp_message(message, content, guild_id)
         else:
             await _handle_general_message(message, content, is_dm, guild_id)
-        await message.remove_reaction("⏳", client.user)
+        await message.remove_reaction(emojis["processing"], client.user)
+        if emojis["success"]:
+            await message.add_reaction(emojis["success"])
     except Exception:
         try:
-            await message.remove_reaction("⏳", client.user)
-            await message.add_reaction("❌")
+            await message.remove_reaction(emojis["processing"], client.user)
+            await message.add_reaction(emojis["error"])
         except discord.HTTPException:
             pass
         raise
@@ -232,20 +235,22 @@ def _handle_admin_command(message: discord.Message) -> bool:
 
 
 async def _do_stop(message: discord.Message) -> None:
-    await message.add_reaction("🛑")
+    emojis = config.load_bot_settings()["emojis"]
+    await message.add_reaction(emojis["stop"])
     logger.info("Kill switch triggered by %s", message.author)
     await client.close()
 
 
 async def _do_sleep_toggle(message: discord.Message, go_sleep: bool) -> None:
+    emojis = config.load_bot_settings()["emojis"]
     _set_sleep(go_sleep)
     if go_sleep:
         await client.change_presence(status=discord.Status.idle)
-        await message.add_reaction("😴")
+        await message.add_reaction(emojis["sleep"])
         logger.info("Sleep mode enabled by %s", message.author)
     else:
         await client.change_presence(status=discord.Status.online)
-        await message.add_reaction("👋")
+        await message.add_reaction(emojis["wake"])
         logger.info("Sleep mode disabled by %s", message.author)
 
 

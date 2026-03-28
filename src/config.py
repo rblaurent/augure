@@ -128,6 +128,29 @@ _CHANNEL_DEFAULTS: dict[str, str] = {
 }
 
 
+def load_bot_settings() -> dict:
+    """
+    Lit bot_settings.yml à chaque appel (le MJ peut modifier ce fichier à chaud).
+    """
+    try:
+        data = yaml.safe_load((CONFIG_DIR / "bot_settings.yml").read_text(encoding="utf-8")) or {}
+    except Exception:
+        data = {}
+    defaults: dict = {
+        "emojis": {
+            "processing": "⏳",
+            "success": "",
+            "error": "❌",
+            "stop": "🛑",
+            "sleep": "😴",
+            "wake": "👋",
+        }
+    }
+    return {
+        "emojis": {**defaults["emojis"], **data.get("emojis", {})}
+    }
+
+
 def load_channels(guild_id: str | None = None) -> dict[str, str]:
     """
     Retourne les noms de channels pour un serveur donné.

@@ -1,0 +1,7 @@
+emojis:
+  processing: "⏳"   # ajouté quand le traitement d'un message commence
+  success: ""        # ajouté en cas de succès (vide = silencieux, le sablier disparaît)
+  error: "❌"        # ajouté en cas d'erreur
+  stop: "🛑"         # commande admin !stop
+  sleep: "😴"        # mode veille activé
+  wake: "👋"         # mode veille désactivé
