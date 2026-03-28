@@ -8,22 +8,8 @@
         "baseURL": "{env:OLLAMA_BASE_URL}"
       },
       "models": {
-        "qwen2.5:32b-instruct-q6_K": {
-          "name": "Qwen2.5 32B Instruct Q6_K",
-          "limit": {
-            "context": 32768,
-            "output": 8192
-          }
-        },
-        "deepseek-r1:8b": {
-          "name": "DeepSeek R1 8B",
-          "limit": {
-            "context": 32768,
-            "output": 8192
-          }
-        },
-        "llama3.1:8b": {
-          "name": "Llama 3.1 8B",
+        "hf.co/unsloth/Qwen3.5-27B-GGUF:UD-Q4_K_XL": {
+          "name": "Qwen3.5 27B Unsloth UD-Q4_K_XL",
           "limit": {
             "context": 32768,
             "output": 8192
@@ -32,5 +18,5 @@
       }
     }
   },
-  "model": "ollama/qwen2.5:32b-instruct-q6_K"
+  "model": "ollama/hf.co/unsloth/Qwen3.5-27B-GGUF:UD-Q4_K_XL"
 }
