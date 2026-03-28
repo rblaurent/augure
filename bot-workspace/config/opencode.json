@@ -8,15 +8,15 @@
         "baseURL": "{env:OLLAMA_BASE_URL}"
       },
       "models": {
-        "hf.co/unsloth/Qwen3.5-27B-GGUF:UD-Q4_K_XL": {
-          "name": "Qwen3.5 27B Unsloth UD-Q4_K_XL",
+        "augure-mj": {
+          "name": "Augure MJ (Qwen3.5 27B, 64K ctx)",
           "limit": {
-            "context": 32768,
+            "context": 65536,
             "output": 8192
           }
         }
       }
     }
   },
-  "model": "ollama/hf.co/unsloth/Qwen3.5-27B-GGUF:UD-Q4_K_XL"
+  "model": "ollama/augure-mj"
 }

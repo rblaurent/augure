@@ -1,0 +1,6 @@
+# Modelfile pour qwen3.5:27b
+# Fixe num_ctx à 64K : assez pour les sessions RP longues, sans saturer les 32GB VRAM
+
+FROM qwen3.5:27b
+
+PARAMETER num_ctx 65536

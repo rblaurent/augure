@@ -93,81 +93,57 @@ class MJScreen:
 
     async def handle_stream_event(self, event: dict, guild_id: str) -> None:
         """
-        Traite un événement du stream JSON d'OpenCode/Claude et poste l'embed correspondant.
+        Traite un événement du stream JSON d'OpenCode et poste l'embed correspondant.
 
-        Format stream-json attendu (identique à Claude CLI) :
-          {"type": "assistant", "message": {"content": [{"type": "thinking", "thinking": "..."}]}}
-          {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "...", "input": {...}}]}}
-          {"type": "user", "message": {"content": [{"type": "tool_result", "content": "...", "is_error": false}]}}
-          {"type": "result", "result": "..."}
+        Format OpenCode (--format json) :
+          {"type": "step_start", "part": {"type": "step-start"}}
+          {"type": "text", "part": {"type": "text", "text": "..."}}
+          {"type": "tool_use", "part": {"type": "tool-use", "tool": "Read", "input": {...}}}
+          {"type": "tool_result", "part": {"type": "tool-result", "tool": "Read", "output": "...", "error": ""}}
+          {"type": "step_finish", "part": {"type": "step-finish", "reason": "stop", "tokens": {...}}}
         """
         channel = await self._get_channel(guild_id)
         if not channel:
             return
 
         event_type = event.get("type")
+        part = event.get("part", {})
 
-        if event_type == "assistant":
-            message = event.get("message", {})
-            content_blocks = message.get("content", [])
-            for block in content_blocks:
-                block_type = block.get("type")
+        if event_type == "tool_use":
+            tool_name = part.get("tool", "")
+            tool_input = part.get("input", {})
 
-                if block_type == "thinking":
-                    thinking = block.get("thinking", "")
-                    if len(thinking) < 50:
-                        continue  # Trop court pour être utile
-                    embed = discord.Embed(
-                        description=_truncate(thinking, 4096),
-                        color=COLORS["thinking"],
-                    )
-                    try:
-                        await channel.send(embed=embed)
-                    except discord.HTTPException as exc:
-                        logger.warning("MJScreen thinking post error: %s", exc)
+            if tool_name in _FILE_TOOLS:
+                path = tool_input.get("file_path") or tool_input.get("path") or str(tool_input)
+                icons = {"Read": "📖", "Write": "✏️", "Edit": "✏️"}
+                desc = f"{icons.get(tool_name, '🔧')} `{path}`"
+            else:
+                desc = _truncate(str(tool_input), 800)
 
-                elif block_type == "tool_use":
-                    tool_name = block.get("name", "")
-                    tool_input = block.get("input", {})
+            embed = discord.Embed(
+                title=f"🔧 {tool_name}",
+                description=desc,
+                color=COLORS["tool_call"],
+            )
+            try:
+                await channel.send(embed=embed)
+            except discord.HTTPException as exc:
+                logger.warning("MJScreen tool_call post error: %s", exc)
 
-                    if tool_name in _FILE_TOOLS:
-                        # Juste le nom du fichier/chemin
-                        path = tool_input.get("file_path") or tool_input.get("path") or str(tool_input)
-                        icons = {"Read": "📖", "Write": "✏️", "Edit": "✏️"}
-                        desc = f"{icons.get(tool_name, '🔧')} `{path}`"
-                    else:
-                        desc = _truncate(str(tool_input), 800)
+        elif event_type == "tool_result":
+            error = part.get("error", "")
+            output = part.get("output", "")
+            is_error = bool(error)
+            content = error if is_error else output
 
-                    embed = discord.Embed(
-                        title=f"🔧 {tool_name}",
-                        description=desc,
-                        color=COLORS["tool_call"],
-                    )
-                    try:
-                        await channel.send(embed=embed)
-                    except discord.HTTPException as exc:
-                        logger.warning("MJScreen tool_call post error: %s", exc)
+            if not content or len(str(content)) < 20:
+                return  # Résultats vides ou triviaux
 
-        elif event_type == "user":
-            message = event.get("message", {})
-            content_blocks = message.get("content", [])
-            for block in content_blocks:
-                if block.get("type") == "tool_result":
-                    is_error = block.get("is_error", False)
-                    result_content = block.get("content", "")
-                    if isinstance(result_content, list):
-                        result_content = " ".join(
-                            b.get("text", "") for b in result_content if isinstance(b, dict)
-                        )
-
-                    if not result_content or len(str(result_content)) < 20:
-                        continue  # Résultats vides ou triviaux
-
-                    embed = discord.Embed(
-                        description=_truncate(str(result_content), 1024),
-                        color=COLORS["tool_error"] if is_error else COLORS["tool_result"],
-                    )
-                    try:
-                        await channel.send(embed=embed)
-                    except discord.HTTPException as exc:
-                        logger.warning("MJScreen tool_result post error: %s", exc)
+            embed = discord.Embed(
+                description=_truncate(str(content), 1024),
+                color=COLORS["tool_error"] if is_error else COLORS["tool_result"],
+            )
+            try:
+                await channel.send(embed=embed)
+            except discord.HTTPException as exc:
+                logger.warning("MJScreen tool_result post error: %s", exc)

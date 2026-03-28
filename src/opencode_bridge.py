@@ -6,13 +6,10 @@ Même pattern que Stasia :
 - File d'attente par utilisateur (asyncio.Queue)
 - Lock VRAM global (remplace le lock Claude)
 - Construction du prompt avec contexte Discord
-- Parsing du stream JSON (format identique à Claude CLI)
+- Parsing du stream JSON (format OpenCode : step_start/text/tool_use/tool_result/step_finish)
 - Logging des invocations dans /workspace/memory/meta/invocation_logs/
 
 Stream vers #mj-screen en temps réel via MJScreen.
-
-NOTE : les flags CLI exacts d'OpenCode sont à vérifier contre la doc ACP.
-L'implémentation utilise le même pattern que Claude CLI (--print, --output-format stream-json).
 """
 
 import asyncio
@@ -36,8 +33,13 @@ _LOG_DIR = config.MEMORY_DIR / "meta" / "invocation_logs"
 
 
 def _extract_result(stdout: str) -> str:
-    """Extract the final text response from stream-json output."""
-    last_assistant_text = ""
+    """Extract the final text response from OpenCode --format json output.
+
+    OpenCode events:
+      {"type": "text", "part": {"type": "text", "text": "..."}}
+      {"type": "step_finish", "part": {"type": "step-finish", "reason": "stop", ...}}
+    """
+    last_text = ""
     for line in stdout.splitlines():
         line = line.strip()
         if not line:
@@ -47,13 +49,11 @@ def _extract_result(stdout: str) -> str:
         except json.JSONDecodeError:
             continue
         t = event.get("type")
-        if t == "result":
-            return event.get("result", "") or last_assistant_text or _FALLBACK_TEXT
-        if t == "assistant":
-            for block in event.get("message", {}).get("content", []):
-                if block.get("type") == "text" and block.get("text"):
-                    last_assistant_text = block["text"]
-    return last_assistant_text or _FALLBACK_TEXT
+        if t == "text":
+            text = event.get("part", {}).get("text", "")
+            if text:
+                last_text = text
+    return last_text or _FALLBACK_TEXT
 
 
 def _write_invocation_log(log_path, prompt: str, stdout: str) -> None:
