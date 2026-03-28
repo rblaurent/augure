@@ -181,6 +181,9 @@ async def on_message(message: discord.Message) -> None:
     if not is_rp_channel and not is_mention and not is_dm:
         return
 
+    # Marquer ce message comme traité pour que le watchdog ne le retraite pas
+    memory.mark_message_handled(message.id)
+
     guild_id = str(message.guild.id) if message.guild else ""
 
     # Nettoyer la @mention si présente

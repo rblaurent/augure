@@ -344,6 +344,12 @@ Tu peux notamment :
 - Accueillir un nouveau joueur (skill accueillir)
 - Générer une image ou un morceau de musique à la demande
 
+⚠️  GÉNÉRATION — règle absolue :
+Si on te demande une image → écris le body dans /tmp/req.json, puis appelle
+POST /generate IMMÉDIATEMENT. Ne vérifie pas si ComfyUI tourne. Ne lis pas le skill
+au préalable. Ne demande pas confirmation. Appelle l'endpoint — il gère les erreurs.
+Idem pour POST /music.
+
 ─────────────────────────────────────────────
 TES OUTILS
 ─────────────────────────────────────────────

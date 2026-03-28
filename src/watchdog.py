@@ -38,6 +38,7 @@ class WatchdogService:
             return
         self._running.add(guild_id)
         try:
+            handled_ids = self._memory.pop_handled_message_ids()
             channels_data: list[dict] = []
             for channel in guild.text_channels:
                 channel_id = str(channel.id)
@@ -54,6 +55,8 @@ class WatchdogService:
                 async for msg in channel.history(limit=20, after=discord.Object(id=last_id)):
                     last_seen_id = msg.id
                     if msg.author == self._client.user:
+                        continue
+                    if msg.id in handled_ids:
                         continue
                     new_messages.append({
                         "id": str(msg.id),

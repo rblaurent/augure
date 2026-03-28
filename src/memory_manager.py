@@ -42,6 +42,7 @@ class MemoryManager:
         self._webhook_messages: dict = _load_json(WEBHOOK_MESSAGES_FILE)
         self._music_posts: dict = _load_json(MUSIC_POSTS_FILE)
         self._pending_reactions: dict[str, list] = {}
+        self._handled_message_ids: set[int] = set()
 
     # ── Webhook messages ───────────────────────────────────────────────────
 
@@ -126,6 +127,16 @@ class MemoryManager:
 
     def pop_pending_reactions(self, channel_id: str) -> list:
         return self._pending_reactions.pop(channel_id, [])
+
+    # ── Handled messages (dedup with watchdog) ─────────────────────────────
+
+    def mark_message_handled(self, message_id: int) -> None:
+        self._handled_message_ids.add(message_id)
+
+    def pop_handled_message_ids(self) -> set[int]:
+        ids = self._handled_message_ids.copy()
+        self._handled_message_ids.clear()
+        return ids
 
     def append_music_library(self, data: dict) -> None:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
