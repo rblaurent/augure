@@ -11,15 +11,9 @@ services:
       - ./bot-workspace/skills:/workspace/skills
       - ./bot-workspace/custom:/workspace/custom
       - ./bot-workspace/music:/workspace/music
-      - opencode_config:/home/botuser/.config/opencode
+      - ./bot-workspace/config/opencode.json:/home/botuser/.config/opencode/opencode.json:ro
     ports:
       - "8765:8765"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # host.docker.internal → Ollama (:11434) et ComfyUI (:8188) sur l'hôte Windows
-
-volumes:
-  opencode_config:
-    # Volume persistant pour la config OpenCode (clés API, préférences).
-    # Première utilisation : docker-compose run --rm augure opencode
-    # Puis configure les clés API dans l'interface.

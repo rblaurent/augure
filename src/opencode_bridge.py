@@ -207,22 +207,14 @@ class OpenCodeQueue:
         """
         prompt = self._build_prompt(req)
 
-        # TODO : vérifier les flags CLI exacts d'OpenCode (ACP).
-        # Actuellement calqués sur Claude CLI. À ajuster si la syntaxe diffère.
-        # Flags probables :
-        #   opencode run --print --output-format stream-json --allowed-tools ...
-        # Ou selon la doc ACP :
-        #   opencode --non-interactive --stream-json ...
+        # opencode run "message" --format json --dir /workspace -m ollama/model
         cmd = [
             config.OPENCODE_BIN,
-            "run",                         # TODO: vérifier si "run" est le bon sous-commande
-            "--print",
-            "--verbose",
-            "--output-format", "stream-json",
-            "--add-dir", "/workspace/skills",
-            "--add-dir", "/workspace/custom",
-            "--allowed-tools",
-            "Read,Write,Edit,Glob,WebFetch,Bash",
+            "run",
+            "--format", "json",
+            "--dir", str(config.WORKSPACE),
+            "-m", f"ollama/{config.OLLAMA_MODEL}",
+            prompt,  # message en argument positionnel
         ]
 
         env = {**os.environ, "HOME": "/home/botuser"}
@@ -236,17 +228,11 @@ class OpenCodeQueue:
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
-                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(config.WORKSPACE),
                 env=env,
             )
-
-            # Envoyer le prompt sur stdin
-            proc.stdin.write(prompt.encode("utf-8"))
-            await proc.stdin.drain()
-            proc.stdin.close()
 
             # Lire stdout ligne par ligne en temps réel
             async def _read_stdout():
@@ -349,27 +335,21 @@ class OpenCodeWatchdogRunner:
         cmd = [
             config.OPENCODE_BIN,
             "run",
-            "--print",
-            "--verbose",
-            "--output-format", "stream-json",
-            "--add-dir", "/workspace/skills",
-            "--add-dir", "/workspace/custom",
-            "--allowed-tools", "Read,Write,Edit,Glob,WebFetch,Bash",
+            "--format", "json",
+            "--dir", str(config.WORKSPACE),
+            "-m", f"ollama/{config.OLLAMA_MODEL}",
+            prompt,
         ]
         env = {**os.environ, "HOME": "/home/botuser"}
         stdout_lines: list[str] = []
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
-                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(config.WORKSPACE),
                 env=env,
             )
-            proc.stdin.write(prompt.encode("utf-8"))
-            await proc.stdin.drain()
-            proc.stdin.close()
 
             async def _read_stdout():
                 assert proc.stdout
