@@ -39,7 +39,10 @@ RUN mkdir -p \
     /workspace/skills \
     /workspace/custom \
     /workspace/music \
-    && chown -R botuser:botuser /workspace /app
+    && mkdir -p /home/botuser/.local/share/opencode \
+                /home/botuser/.local/state \
+                /home/botuser/.cache/opencode \
+    && chown -R botuser:botuser /workspace /app /home/botuser
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

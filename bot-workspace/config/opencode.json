@@ -8,8 +8,8 @@
         "baseURL": "{env:OLLAMA_BASE_URL}"
       },
       "models": {
-        "augure-mj": {
-          "name": "Augure MJ (Qwen3.5 27B, 64K ctx)",
+        "huihui_ai/qwen3.5-abliterated:27b": {
+          "name": "Augure MJ (Qwen3.5 Abliterated 27B, 64K ctx)",
           "limit": {
             "context": 65536,
             "output": 8192

@@ -1,7 +1,7 @@
 emojis:
-  queued: "⏳"      # ajouté dès réception du message, en attente dans la file
-  processing: "⚙️"  # remplace queued quand OpenCode démarre vraiment
-  success: ""        # ajouté en cas de succès (vide = silencieux)
+  queued: "▪️"      # ajouté dès réception du message, en attente dans la file
+  processing: "🔸"  # remplace queued quand OpenCode démarre vraiment
+  success: "▫️"        # ajouté en cas de succès (vide = silencieux)
   error: "❌"        # ajouté en cas d'erreur
   stop: "🛑"         # commande admin !stop
   sleep: "😴"        # mode veille activé

@@ -10,7 +10,7 @@ import logging
 
 import discord
 
-from . import config, internal_api
+from . import config, internal_api, opencode_bridge
 from .comfyui_bridge import ComfyUIBridge
 from .memory_manager import MemoryManager
 from .mj_screen import MJScreen
@@ -250,6 +250,9 @@ def _handle_admin_command(message: discord.Message) -> bool:
     if stripped in ("!sleep", "!wake"):
         asyncio.create_task(_do_sleep_toggle(message, stripped == "!sleep"))
         return True
+    if stripped in ("!debug on", "!debug off"):
+        asyncio.create_task(_do_debug_toggle(message, stripped == "!debug on"))
+        return True
     return False
 
 
@@ -258,6 +261,13 @@ async def _do_stop(message: discord.Message) -> None:
     await message.add_reaction(emojis["stop"])
     logger.info("Kill switch triggered by %s", message.author)
     await client.close()
+
+
+async def _do_debug_toggle(message: discord.Message, enable: bool) -> None:
+    opencode_bridge.set_fake_stream(enable)
+    label = "🟡 Debug ON — fake stream actif" if enable else "⚫ Debug OFF — mode normal"
+    await message.add_reaction("🟡" if enable else "⚫")
+    await message.channel.send(label)
 
 
 async def _do_sleep_toggle(message: discord.Message, go_sleep: bool) -> None:
@@ -335,7 +345,7 @@ async def _handle_general_message(
             for g in client.guilds
             if message.guild is None or g.get_member(message.author.id)
         ],
-        "recent_history": await _get_history(message.channel, limit=30 if is_dm else 50),
+        "recent_history": await _get_history(message.channel, limit=15 if is_dm else 20),
     }
 
     req = mj_queue.enqueue(

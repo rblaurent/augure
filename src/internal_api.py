@@ -12,7 +12,7 @@ Routes enregistrées par sous-modules :
 from aiohttp import web
 
 from .api_context import ApiContext
-from . import api_routes_messages, api_routes_webhooks, api_routes_generation, api_routes_npc
+from . import api_routes_messages, api_routes_webhooks, api_routes_generation, api_routes_npc, api_routes_debug
 
 PORT = 8765
 
@@ -38,6 +38,7 @@ def create_app() -> web.Application:
     api_routes_webhooks.register(app, _ctx)
     api_routes_generation.register(app, _ctx)
     api_routes_npc.register(app, _ctx)
+    api_routes_debug.register(app, _ctx)
     return app
 
 

@@ -17,6 +17,8 @@ import datetime
 import json
 import logging
 import os
+import pty
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -30,6 +32,13 @@ logger = logging.getLogger(__name__)
 
 _FALLBACK_TEXT = "Une erreur est survenue. Réessaie."
 _LOG_DIR = config.MEMORY_DIR / "meta" / "invocation_logs"
+_FAKE_STREAM = False
+
+
+def set_fake_stream(enabled: bool) -> None:
+    global _FAKE_STREAM
+    _FAKE_STREAM = enabled
+    logger.info("Fake stream mode: %s", "ON" if enabled else "OFF")
 
 
 def _extract_result(stdout: str) -> str:
@@ -67,6 +76,65 @@ def _write_invocation_log(log_path, prompt: str, stdout: str) -> None:
                     f.write(line + "\n")
     except Exception as exc:
         logger.warning("Failed to write invocation log %s: %s", log_path, exc)
+
+
+_ANSI_ESCAPE = re.compile(rb'\x1b\[[0-9;]*[mABCDEFGHJKSTfhilmnprsu]|\x1b\[?\d*[hl]|\r')
+
+
+async def _run_with_pty(cmd: list[str], env: dict, cwd: str, timeout: int, on_line) -> None:
+    """
+    Run a command with a PTY as stdout so Node.js flushes line-by-line.
+    Calls on_line(line: str) for each line received.
+    Raises asyncio.TimeoutError on timeout.
+    """
+    master_fd, slave_fd = pty.openpty()
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+            env=env,
+            cwd=cwd,
+        )
+        os.close(slave_fd)
+        slave_fd = -1
+
+        loop = asyncio.get_event_loop()
+        reader = asyncio.StreamReader()
+        protocol = asyncio.StreamReaderProtocol(reader)
+        await loop.connect_read_pipe(lambda: protocol, open(master_fd, 'rb', buffering=0))
+
+        async def _read():
+            buf = b""
+            while True:
+                try:
+                    chunk = await reader.read(4096)
+                except Exception:
+                    break
+                if not chunk:
+                    break
+                buf += chunk
+                while b'\n' in buf:
+                    raw, buf = buf.split(b'\n', 1)
+                    raw = _ANSI_ESCAPE.sub(b'', raw)
+                    line = raw.decode('utf-8', errors='replace').strip()
+                    if line:
+                        await on_line(line)
+
+        await asyncio.wait_for(asyncio.gather(_read(), proc.wait()), timeout=timeout)
+
+    finally:
+        if slave_fd != -1:
+            try:
+                os.close(slave_fd)
+            except OSError:
+                pass
+        try:
+            os.close(master_fd)
+        except OSError:
+            pass
 
 
 def is_mj_busy(vram: VRAMArbitrator) -> bool:
@@ -200,18 +268,41 @@ class OpenCodeQueue:
 
         return "\n".join(lines)
 
+    async def _run_fake_stream(self, req: MJRequest) -> str:
+        """Replay a fake event stream through mj-screen without touching Ollama."""
+        events = [
+            {"type": "step_start", "part": {"type": "step-start"}},
+            {"type": "text", "part": {"type": "text", "text": f"[FAKE] Message reçu : {req.user_message[:80]}"}},
+            {"type": "text", "part": {"type": "text", "text": " Je consulte mes fichiers de configuration..."}},
+            {"type": "tool_use", "part": {"type": "tool-use", "tool": "Read", "input": {"file_path": "/workspace/config/identity.md"}}},
+            {"type": "tool_result", "part": {"type": "tool-result", "tool": "Read", "output": "Fichier simulé — mode debug actif.", "error": ""}},
+            {"type": "text", "part": {"type": "text", "text": " Réponse simulée générée avec succès."}},
+            {"type": "step_finish", "part": {"type": "step-finish", "reason": "stop", "cost": 0, "tokens": {"total": 0, "input": 0, "output": 0}}},
+        ]
+        for event in events:
+            await self._mj_screen.handle_stream_event(event, req.guild_id)
+            await asyncio.sleep(0.5)
+        return "[DEBUG] Réponse simulée — fake stream actif."
+
     async def _run_opencode_async(self, req: MJRequest) -> str:
         """
         Lance OpenCode en subprocess asyncio pour le streaming temps réel.
         Parse le stream JSON ligne par ligne et poste dans #mj-screen.
         """
+        if _FAKE_STREAM:
+            return await self._run_fake_stream(req)
+
         prompt = self._build_prompt(req)
+        await self._mj_screen.post(req.guild_id, "thinking", prompt[:4000], title="📨 Prompt envoyé au MJ")
 
         # opencode run "message" --format json --dir /workspace -m ollama/model
+        # --title prevents OpenCode from making a separate LLM call to auto-generate a session title
         cmd = [
             config.OPENCODE_BIN,
             "run",
             "--format", "json",
+            "--thinking",
+            "--title", f"{log_kind}_{req.user_id}_{ts}",
             "--dir", str(config.WORKSPACE),
             "-m", f"ollama/{config.OLLAMA_MODEL}",
             prompt,  # message en argument positionnel
@@ -225,54 +316,24 @@ class OpenCodeQueue:
 
         stdout_lines: list[str] = []
 
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(config.WORKSPACE),
-                env=env,
-            )
-
-            # Lire stdout ligne par ligne en temps réel
-            async def _read_stdout():
-                assert proc.stdout
-                async for raw_line in proc.stdout:
-                    line = raw_line.decode("utf-8", errors="replace").strip()
-                    if not line:
-                        continue
-                    stdout_lines.append(line)
-                    # Parser et poster dans #mj-screen
-                    try:
-                        event = json.loads(line)
-                        await self._mj_screen.handle_stream_event(event, req.guild_id)
-                    except (json.JSONDecodeError, Exception):
-                        pass
-
-            # Lire stderr (silencieux sauf erreurs)
-            async def _read_stderr():
-                assert proc.stderr
-                stderr_data = await proc.stderr.read()
-                if stderr_data.strip():
-                    logger.debug("OpenCode stderr: %s", stderr_data.decode()[:500])
-
-            # Timeout global
+        async def _on_line(line: str) -> None:
+            stdout_lines.append(line)
             try:
-                await asyncio.wait_for(
-                    asyncio.gather(_read_stdout(), _read_stderr()),
-                    timeout=config.MJ_TIMEOUT,
-                )
-            except asyncio.TimeoutError:
-                proc.kill()
-                logger.error("OpenCode timed out after %ds", config.MJ_TIMEOUT)
-                raise
+                event = json.loads(line)
+                logger.info("MJ stream event: type=%s", event.get("type"))
+                await self._mj_screen.handle_stream_event(event, req.guild_id)
+            except json.JSONDecodeError:
+                logger.info("MJ stream non-JSON: %s", line[:100])
+            except Exception as exc:
+                logger.warning("MJ stream error: %s", exc, exc_info=True)
 
-            await proc.wait()
-
+        try:
+            await _run_with_pty(cmd, env, str(config.WORKSPACE), config.MJ_TIMEOUT, _on_line)
         except FileNotFoundError:
             logger.error("OpenCode binary not found: %s", config.OPENCODE_BIN)
             return "OpenCode introuvable. Vérifie que le binaire est installé."
         except asyncio.TimeoutError:
+            logger.error("OpenCode timed out after %ds", config.MJ_TIMEOUT)
             raise
         except Exception as exc:
             logger.error("OpenCode subprocess error: %s", exc, exc_info=True)
@@ -337,47 +398,30 @@ class OpenCodeWatchdogRunner:
         return "\n".join(lines)
 
     async def _call_opencode(self, prompt: str, guild_id: str) -> None:
+        ts_wd = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         cmd = [
             config.OPENCODE_BIN,
             "run",
             "--format", "json",
+            "--thinking",
+            "--title", f"watchdog_{guild_id}_{ts_wd}",
             "--dir", str(config.WORKSPACE),
             "-m", f"ollama/{config.OLLAMA_MODEL}",
             prompt,
         ]
         env = {**os.environ, "HOME": "/home/botuser"}
         stdout_lines: list[str] = []
+
+        async def _on_line(line: str) -> None:
+            stdout_lines.append(line)
+            try:
+                event = json.loads(line)
+                await self._mj_screen.handle_stream_event(event, guild_id)
+            except Exception:
+                pass
+
         try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=str(config.WORKSPACE),
-                env=env,
-            )
-
-            async def _read_stdout():
-                assert proc.stdout
-                async for raw_line in proc.stdout:
-                    line = raw_line.decode("utf-8", errors="replace").strip()
-                    if not line:
-                        continue
-                    stdout_lines.append(line)
-                    try:
-                        event = json.loads(line)
-                        await self._mj_screen.handle_stream_event(event, guild_id)
-                    except Exception:
-                        pass
-
-            async def _read_stderr():
-                assert proc.stderr
-                await proc.stderr.read()
-
-            await asyncio.wait_for(
-                asyncio.gather(_read_stdout(), _read_stderr()),
-                timeout=config.MJ_TIMEOUT,
-            )
-            await proc.wait()
+            await _run_with_pty(cmd, env, str(config.WORKSPACE), config.MJ_TIMEOUT, _on_line)
         except asyncio.TimeoutError:
             logger.error("Watchdog OpenCode timed out")
         except Exception as exc:
