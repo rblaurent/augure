@@ -295,6 +295,9 @@ class OpenCodeQueue:
         prompt = self._build_prompt(req)
         await self._mj_screen.post(req.guild_id, "thinking", prompt[:4000], title="📨 Prompt envoyé au MJ")
 
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_kind = "rp" if req.is_rp else "general"
+
         # opencode run "message" --format json --dir /workspace -m ollama/model
         # --title prevents OpenCode from making a separate LLM call to auto-generate a session title
         cmd = [
@@ -309,9 +312,6 @@ class OpenCodeQueue:
         ]
 
         env = {**os.environ, "HOME": "/home/botuser"}
-
-        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_kind = "rp" if req.is_rp else "general"
         log_path = _LOG_DIR / f"{ts}_{log_kind}_{req.user_id}.jsonl"
 
         stdout_lines: list[str] = []
