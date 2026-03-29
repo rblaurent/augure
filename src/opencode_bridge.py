@@ -293,7 +293,7 @@ class OpenCodeQueue:
             return await self._run_fake_stream(req)
 
         prompt = self._build_prompt(req)
-        await self._mj_screen.post(req.guild_id, "thinking", prompt[:4000], title="📨 Prompt envoyé au MJ")
+        await self._mj_screen.post(req.guild_id, "thinking", req.user_message[:200], title="📨 Prompt envoyé au MJ")
 
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         log_kind = "rp" if req.is_rp else "general"

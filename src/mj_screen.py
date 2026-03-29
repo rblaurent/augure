@@ -103,6 +103,12 @@ class MJScreen:
     async def post_decision(self, guild_id: str, content: str) -> None:
         await self.post(guild_id, "decision", content)
 
+    @staticmethod
+    def _ts(dt: datetime.datetime | None = None) -> str:
+        """Format a datetime as HH:MM:SS (local time)."""
+        t = (dt or datetime.datetime.now()).astimezone()
+        return t.strftime("%H:%M:%S")
+
     def _build_step_embed(self, events: list[dict], step_n: int, *, in_progress: bool, started_at: datetime.datetime | None = None) -> discord.Embed:
         """Construit l'embed d'un step (live ou final)."""
         has_error = any(e["is_error"] for e in events if e["etype"] == "tool")
@@ -121,26 +127,28 @@ class MJScreen:
             color = COLORS["thinking"]
             title = f"Step {step_n}"
 
-        lines: list[str] = []
+        lines: list[str] = [f"`{self._ts(started_at)}` ▶ début"]
         for e in events:
+            ts = f"`{e['ts']}`"
             if e["etype"] == "thinking":
-                lines.append(f"🧠 *{_truncate(e['text'], 200)}*")
+                lines.append(f"{ts} 🧠 *{_truncate(e['text'], 200)}*")
             elif e["etype"] == "tool":
                 icon = "❌" if e["is_error"] else "🔧"
-                lines.append(f"{icon} **{e['tool']}** → {e['desc']}")
+                lines.append(f"{ts} {icon} **{e['tool']}** → {e['desc']}")
                 if e["is_error"] and e["error"]:
                     lines.append(f"  ↳ `{_truncate(str(e['error']), 150)}`")
             elif e["etype"] == "text":
-                lines.append(f"💬 {_truncate(e['text'], 400)}")
+                lines.append(f"{ts} 💬 {_truncate(e['text'], 400)}")
 
-        desc = "\n".join(lines) or ("*(en cours…)*" if in_progress else "*(aucune activité)*")
-        embed = discord.Embed(
+        if not in_progress:
+            lines.append(f"`{self._ts()}` ✅ fin")
+
+        desc = "\n".join(lines)
+        return discord.Embed(
             title=title,
             description=_truncate(desc, 4096),
             color=color,
         )
-        embed.timestamp = started_at or datetime.datetime.now(datetime.timezone.utc)
-        return embed
 
     async def _refresh_step(self, guild_id: str, *, final: bool) -> None:
         """Edit le message live du step en cours (debounced sauf si final)."""
@@ -204,7 +212,7 @@ class MJScreen:
             text = part.get("text", "") or part.get("thinking", "")
             if text:
                 self._step_events.setdefault(guild_id, []).append(
-                    {"etype": "thinking", "text": text}
+                    {"etype": "thinking", "text": text, "ts": self._ts()}
                 )
                 await self._refresh_step(guild_id, final=False)
 
@@ -214,9 +222,9 @@ class MJScreen:
                 evs = self._step_events.setdefault(guild_id, [])
                 # Fusionner avec le dernier bloc texte pour éviter la fragmentation
                 if evs and evs[-1]["etype"] == "text":
-                    evs[-1]["text"] += text
+                    evs[-1]["text"] += text  # keep original timestamp
                 else:
-                    evs.append({"etype": "text", "text": text})
+                    evs.append({"etype": "text", "text": text, "ts": self._ts()})
                 await self._refresh_step(guild_id, final=False)
 
         elif event_type == "tool_use":
@@ -239,6 +247,7 @@ class MJScreen:
                 "desc": desc,
                 "is_error": is_error,
                 "error": tool_error,
+                "ts": self._ts(),
             })
             # Tool calls sont des événements discrets — toujours rafraîchir
             await self._refresh_step(guild_id, final=False)
