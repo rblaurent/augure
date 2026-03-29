@@ -116,16 +116,12 @@ class MJScreen:
 
         if in_progress:
             color = COLORS["in_progress"]
-            title = f"⏳ Step {step_n}"
         elif has_error:
             color = COLORS["tool_error"]
-            title = f"Step {step_n}"
         elif has_tools:
             color = COLORS["tool_call"]
-            title = f"Step {step_n}"
         else:
             color = COLORS["thinking"]
-            title = f"Step {step_n}"
 
         lines: list[str] = [f"`{self._ts(started_at)}` ▶ début"]
         for e in events:
@@ -145,7 +141,6 @@ class MJScreen:
 
         desc = "\n".join(lines)
         return discord.Embed(
-            title=title,
             description=_truncate(desc, 4096),
             color=color,
         )
