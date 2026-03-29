@@ -210,12 +210,14 @@ async def on_message(message: discord.Message) -> None:
         content = "(action sans texte)"
 
     emojis = config.load_bot_settings()["emojis"]
-    await message.add_reaction(emojis["queued"])
+    queue_key = f"{guild_id}:rp" if is_rp_channel else str(message.author.id)
+    is_immediate = mj_queue.is_idle(queue_key)
+    await message.add_reaction(emojis["processing"] if is_immediate else emojis["queued"])
     try:
         if is_rp_channel:
-            await _handle_rp_message(message, content, guild_id)
+            await _handle_rp_message(message, content, guild_id, is_immediate)
         else:
-            await _handle_general_message(message, content, is_dm, guild_id)
+            await _handle_general_message(message, content, is_dm, guild_id, is_immediate)
         for e in (emojis["queued"], emojis["processing"]):
             if e:
                 try:
@@ -287,7 +289,7 @@ async def _do_sleep_toggle(message: discord.Message, go_sleep: bool) -> None:
 # Handlers
 # ──────────────────────────────────────────────
 
-async def _handle_rp_message(message: discord.Message, content: str, guild_id: str) -> None:
+async def _handle_rp_message(message: discord.Message, content: str, guild_id: str, skip_queued: bool = False) -> None:
     """Message dans #rp — le MJ orchestre. Pas de réponse directe du bot."""
     ctx = {
         "is_dm": False,
@@ -308,13 +310,14 @@ async def _handle_rp_message(message: discord.Message, content: str, guild_id: s
     )
 
     emojis = config.load_bot_settings()["emojis"]
-    await req.started.wait()
-    if emojis["processing"] and emojis["processing"] != emojis["queued"]:
-        try:
-            await message.remove_reaction(emojis["queued"], client.user)
-            await message.add_reaction(emojis["processing"])
-        except discord.HTTPException:
-            pass
+    if not skip_queued:
+        await req.started.wait()
+        if emojis["processing"] and emojis["processing"] != emojis["queued"]:
+            try:
+                await message.remove_reaction(emojis["queued"], client.user)
+                await message.add_reaction(emojis["processing"])
+            except discord.HTTPException:
+                pass
 
     try:
         await asyncio.wait_for(req.future, timeout=config.MJ_TIMEOUT * 2)
@@ -326,7 +329,7 @@ async def _handle_rp_message(message: discord.Message, content: str, guild_id: s
 
 
 async def _handle_general_message(
-    message: discord.Message, content: str, is_dm: bool, guild_id: str
+    message: discord.Message, content: str, is_dm: bool, guild_id: str, skip_queued: bool = False
 ) -> None:
     """@mention ou DM — le MJ répond directement en texte."""
     ctx = {
@@ -357,13 +360,14 @@ async def _handle_general_message(
     )
 
     emojis = config.load_bot_settings()["emojis"]
-    await req.started.wait()
-    if emojis["processing"] and emojis["processing"] != emojis["queued"]:
-        try:
-            await message.remove_reaction(emojis["queued"], client.user)
-            await message.add_reaction(emojis["processing"])
-        except discord.HTTPException:
-            pass
+    if not skip_queued:
+        await req.started.wait()
+        if emojis["processing"] and emojis["processing"] != emojis["queued"]:
+            try:
+                await message.remove_reaction(emojis["queued"], client.user)
+                await message.add_reaction(emojis["processing"])
+            except discord.HTTPException:
+                pass
 
     try:
         async with message.channel.typing():
