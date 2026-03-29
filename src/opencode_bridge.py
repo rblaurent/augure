@@ -305,6 +305,7 @@ class OpenCodeQueue:
             config.OPENCODE_BIN,
             "run",
             "--format", "json",
+            "--thinking",
             "--title", f"{log_kind}_{req.user_id}_{ts}",
             "--dir", str(config.WORKSPACE),
             "-m", f"ollama/{config.OLLAMA_MODEL}",
