@@ -198,6 +198,12 @@ class OpenCodeQueue:
         self._queues[queue_key].put_nowait(req)
         return req
 
+    def is_idle(self, queue_key: str) -> bool:
+        """True if no message is queued or being processed for this key."""
+        q = self._queues.get(queue_key)
+        worker = self._workers.get(queue_key)
+        return (q is None or q.qsize() == 0) and (worker is None or worker.done())
+
     async def _worker(self, queue_key: str) -> None:
         """Traite les requêtes d'une queue une par une. S'arrête après 10min d'inactivité."""
         queue = self._queues[queue_key]
@@ -339,6 +345,8 @@ class OpenCodeQueue:
         except Exception as exc:
             logger.error("OpenCode subprocess error: %s", exc, exc_info=True)
             return f"❌ Erreur subprocess : {exc}"
+        finally:
+            await self._mj_screen.finalize_open_step(req.guild_id)
 
         # Écrire le log d'invocation
         stdout_text = "\n".join(stdout_lines)
@@ -373,6 +381,8 @@ class OpenCodeWatchdogRunner:
             logger.info("Watchdog skipped — MJ already busy")
             return
         prompt = self._build_prompt(guild_id, guild_name, channels_data)
+        _now = datetime.datetime.now().astimezone().strftime("%H:%M:%S")
+        await self._mj_screen.post(guild_id, "thinking", f"`{_now}` 👁️ watchdog")
         async with _VRAMLLMContext(self._vram):
             await self._call_opencode(prompt, guild_id)
 
@@ -428,6 +438,7 @@ class OpenCodeWatchdogRunner:
         except Exception as exc:
             logger.error("Watchdog failed: %s", exc)
         finally:
+            await self._mj_screen.finalize_open_step(guild_id)
             ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             stdout_text = "\n".join(stdout_lines)
             _write_invocation_log(_LOG_DIR / f"{ts}_watchdog.jsonl", prompt, stdout_text)

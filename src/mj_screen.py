@@ -167,6 +167,12 @@ class MJScreen:
         except discord.HTTPException as exc:
             logger.warning("MJScreen step edit error: %s", exc)
 
+    async def finalize_open_step(self, guild_id: str) -> None:
+        """Finalise le step courant si OpenCode s'arrête sans émettre step_finish."""
+        if self._step_messages.get(guild_id):
+            await self._refresh_step(guild_id, final=True)
+            self._step_messages.pop(guild_id, None)
+
     async def handle_stream_event(self, event: dict, guild_id: str) -> None:
         """
         Traite un événement du stream JSON d'OpenCode.
