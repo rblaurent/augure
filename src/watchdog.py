@@ -80,6 +80,10 @@ class WatchdogService:
                         "timestamp": msg.created_at.isoformat(),
                     })
 
+                # Always advance cursor past any new messages (including bot replies)
+                if last_seen_id:
+                    self._memory.update_watchdog_last_message_id(channel_id, last_seen_id)
+
                 if new_messages:
                     new_messages.reverse()
                     history = []
