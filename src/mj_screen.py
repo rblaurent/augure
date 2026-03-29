@@ -1,10 +1,13 @@
 """
 MJ Screen — parse le stream d'événements du subprocess OpenCode et poste
 des embeds formatés dans #mj-screen en temps réel.
+
+Un embed est posté par step (step_start) et mis à jour au fur et à mesure
+des sous-événements, puis finalisé (couleur + titre) au step_finish.
 """
 
-import asyncio
 import logging
+import time
 
 import discord
 
@@ -14,18 +17,21 @@ logger = logging.getLogger(__name__)
 
 # Couleurs des embeds selon le type d'événement
 COLORS = {
-    "thinking":     0x95a5a6,  # gris
-    "tool_call":    0x3498db,  # bleu
-    "tool_result":  0x2ecc71,  # vert
-    "tool_error":   0xe74c3c,  # rouge
+    "in_progress":  0xf39c12,  # orange — step en cours
+    "thinking":     0x95a5a6,  # gris   — step sans tool call
+    "tool_call":    0x3498db,  # bleu   — step avec tools OK
+    "tool_error":   0xe74c3c,  # rouge  — step avec au moins un outil en erreur
+    "tool_result":  0x2ecc71,  # vert   (conservé pour post() générique)
     "npc_brief":    0x9b59b6,  # violet
     "npc_response": 0xf39c12,  # orange
     "decision":     0x1abc9c,  # turquoise
 }
 
-# Noms d'outils pour lesquels on affiche juste le nom du fichier (lowercase — format réel OpenCode)
+# Noms d'outils pour lesquels on affiche juste le chemin (lowercase)
 _FILE_TOOLS = {"read", "write", "edit"}
-_FILE_ICONS = {"read": "📖", "write": "✏️", "edit": "✏️"}
+
+# Délai minimum entre deux edits Discord (rate-limit safety)
+_EDIT_DEBOUNCE = 1.0  # secondes
 
 
 def _truncate(text: str, limit: int = 1024) -> str:
@@ -43,7 +49,11 @@ class MJScreen:
 
     def __init__(self, client: discord.Client) -> None:
         self._client = client
-        self._text_buffer: dict[str, str] = {}  # guild_id → accumulated text
+        # Accumulateurs par guild pour regrouper les events d'un step
+        self._step_events:    dict[str, list[dict]]           = {}
+        self._step_count:     dict[str, int]                  = {}
+        self._step_messages:  dict[str, discord.Message|None] = {}
+        self._step_last_edit: dict[str, float]                = {}
 
     async def _get_channel(self, guild_id: str) -> discord.TextChannel | None:
         # Pas de cache — channels.yml peut être modifié à chaud par le MJ
@@ -91,102 +101,142 @@ class MJScreen:
     async def post_decision(self, guild_id: str, content: str) -> None:
         await self.post(guild_id, "decision", content)
 
-    async def _flush_text(self, guild_id: str, channel: discord.TextChannel) -> None:
-        """Post accumulated thinking text as an embed, then clear the buffer."""
-        text = self._text_buffer.pop(guild_id, "").strip()
-        if not text:
-            return
-        embed = discord.Embed(
-            description=_truncate(text, 4096),
-            color=COLORS["thinking"],
+    def _build_step_embed(self, events: list[dict], step_n: int, *, in_progress: bool) -> discord.Embed:
+        """Construit l'embed d'un step (live ou final)."""
+        has_error = any(e["is_error"] for e in events if e["etype"] == "tool")
+        has_tools = any(e["etype"] == "tool" for e in events)
+
+        if in_progress:
+            color = COLORS["in_progress"]
+            title = f"⏳ Step {step_n}"
+        elif has_error:
+            color = COLORS["tool_error"]
+            title = f"Step {step_n}"
+        elif has_tools:
+            color = COLORS["tool_call"]
+            title = f"Step {step_n}"
+        else:
+            color = COLORS["thinking"]
+            title = f"Step {step_n}"
+
+        lines: list[str] = []
+        for e in events:
+            if e["etype"] == "thinking":
+                lines.append(f"🧠 *{_truncate(e['text'], 200)}*")
+            elif e["etype"] == "tool":
+                icon = "❌" if e["is_error"] else "🔧"
+                lines.append(f"{icon} **{e['tool']}** → {e['desc']}")
+                if e["is_error"] and e["error"]:
+                    lines.append(f"  ↳ `{_truncate(str(e['error']), 150)}`")
+            elif e["etype"] == "text":
+                lines.append(f"💬 {_truncate(e['text'], 400)}")
+
+        desc = "\n".join(lines) or ("*(en cours…)*" if in_progress else "*(aucune activité)*")
+        return discord.Embed(
+            title=title,
+            description=_truncate(desc, 4096),
+            color=color,
         )
+
+    async def _refresh_step(self, guild_id: str, *, final: bool) -> None:
+        """Edit le message live du step en cours (debounced sauf si final)."""
+        msg = self._step_messages.get(guild_id)
+        if not msg:
+            return
+
+        now = time.monotonic()
+        if not final:
+            last = self._step_last_edit.get(guild_id, 0.0)
+            if now - last < _EDIT_DEBOUNCE:
+                return  # trop tôt, on skip cet update
+
+        evs = self._step_events.get(guild_id, [])
+        step_n = self._step_count.get(guild_id, 1)
+        embed = self._build_step_embed(evs, step_n, in_progress=not final)
         try:
-            await channel.send(embed=embed)
+            await msg.edit(embed=embed)
+            self._step_last_edit[guild_id] = time.monotonic()
         except discord.HTTPException as exc:
-            logger.warning("MJScreen thinking post error: %s", exc)
+            logger.warning("MJScreen step edit error: %s", exc)
 
     async def handle_stream_event(self, event: dict, guild_id: str) -> None:
         """
-        Traite un événement du stream JSON d'OpenCode et poste l'embed correspondant.
+        Traite un événement du stream JSON d'OpenCode.
+        Poste un embed au step_start et l'édite à chaque sous-événement,
+        puis finalise la couleur au step_finish.
 
         Format OpenCode (--format json) :
-          {"type": "step_start", "part": {"type": "step-start"}}
-          {"type": "text", "part": {"type": "text", "text": "..."}}
-          {"type": "tool_use", "part": {"type": "tool-use", "tool": "Read", "input": {...}}}
-          {"type": "tool_result", "part": {"type": "tool-result", "tool": "Read", "output": "...", "error": ""}}
-          {"type": "step_finish", "part": {"type": "step-finish", "reason": "stop", "tokens": {...}}}
+          {"type": "step_start",  "part": {"type": "step-start"}}
+          {"type": "text",        "part": {"type": "text", "text": "..."}}
+          {"type": "thinking",    "part": {"type": "thinking", "thinking": "..."}}
+          {"type": "tool_use",    "part": {"type": "tool-use", "tool": "Read", ...}}
+          {"type": "step_finish", "part": {"type": "step-finish", "reason": "stop", ...}}
         """
-        channel = await self._get_channel(guild_id)
-        if not channel:
-            return
-
         event_type = event.get("type")
         part = event.get("part", {})
 
         if event_type == "step_start":
-            self._text_buffer[guild_id] = ""
+            self._step_events[guild_id] = []
+            self._step_count[guild_id] = self._step_count.get(guild_id, 0) + 1
+            self._step_last_edit.pop(guild_id, None)
+
+            channel = await self._get_channel(guild_id)
+            if not channel:
+                self._step_messages[guild_id] = None
+                return
+
+            step_n = self._step_count[guild_id]
+            embed = self._build_step_embed([], step_n, in_progress=True)
+            try:
+                msg = await channel.send(embed=embed)
+                self._step_messages[guild_id] = msg
+            except discord.HTTPException as exc:
+                logger.warning("MJScreen step_start post error: %s", exc)
+                self._step_messages[guild_id] = None
 
         elif event_type in ("thinking", "reasoning"):
             text = part.get("text", "") or part.get("thinking", "")
             if text:
-                embed = discord.Embed(
-                    title="🧠 Thinking",
-                    description=_truncate(text, 4096),
-                    color=COLORS["thinking"],
+                self._step_events.setdefault(guild_id, []).append(
+                    {"etype": "thinking", "text": text}
                 )
-                try:
-                    await channel.send(embed=embed)
-                except discord.HTTPException as exc:
-                    logger.warning("MJScreen thinking block post error: %s", exc)
+                await self._refresh_step(guild_id, final=False)
 
         elif event_type == "text":
             text = part.get("text", "")
             if text:
-                self._text_buffer.setdefault(guild_id, "")
-                self._text_buffer[guild_id] += text
+                evs = self._step_events.setdefault(guild_id, [])
+                # Fusionner avec le dernier bloc texte pour éviter la fragmentation
+                if evs and evs[-1]["etype"] == "text":
+                    evs[-1]["text"] += text
+                else:
+                    evs.append({"etype": "text", "text": text})
+                await self._refresh_step(guild_id, final=False)
 
         elif event_type == "tool_use":
-            # Flush accumulated thinking text before the tool call
-            await self._flush_text(guild_id, channel)
-
             tool_name = part.get("tool", "")
-            # Input and output are nested under part["state"] in OpenCode's actual format
             state = part.get("state", {})
             tool_input = state.get("input", part.get("input", {}))
-            tool_output = state.get("output", "")
             tool_error = state.get("error", "")
             is_error = bool(tool_error)
 
-            if tool_name in _FILE_TOOLS:
+            if tool_name.lower() in _FILE_TOOLS:
                 path = (tool_input.get("filePath") or tool_input.get("file_path")
                         or tool_input.get("path") or str(tool_input))
-                icon = _FILE_ICONS.get(tool_name, "🔧")
-                desc = f"{icon} `{path}`"
+                desc = f"`{path}`"
             else:
-                desc = _truncate(str(tool_input), 800)
+                desc = _truncate(str(tool_input), 300)
 
-            embed = discord.Embed(
-                title=f"🔧 {tool_name}",
-                description=desc,
-                color=COLORS["tool_error"] if is_error else COLORS["tool_call"],
-            )
-            try:
-                await channel.send(embed=embed)
-            except discord.HTTPException as exc:
-                logger.warning("MJScreen tool_call post error: %s", exc)
-
-            # Result is bundled in the same event — post it immediately after
-            result_content = tool_error if is_error else tool_output
-            if result_content and len(str(result_content)) >= 20:
-                result_embed = discord.Embed(
-                    description=_truncate(str(result_content), 1024),
-                    color=COLORS["tool_error"] if is_error else COLORS["tool_result"],
-                )
-                try:
-                    await channel.send(embed=result_embed)
-                except discord.HTTPException as exc:
-                    logger.warning("MJScreen tool_result post error: %s", exc)
+            self._step_events.setdefault(guild_id, []).append({
+                "etype": "tool",
+                "tool": tool_name,
+                "desc": desc,
+                "is_error": is_error,
+                "error": tool_error,
+            })
+            # Tool calls sont des événements discrets — toujours rafraîchir
+            await self._refresh_step(guild_id, final=False)
 
         elif event_type == "step_finish":
-            # Flush any remaining text (final response)
-            await self._flush_text(guild_id, channel)
+            await self._refresh_step(guild_id, final=True)
+            self._step_messages.pop(guild_id, None)
