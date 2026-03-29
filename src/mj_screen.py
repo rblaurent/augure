@@ -6,6 +6,7 @@ Un embed est posté par step (step_start) et mis à jour au fur et à mesure
 des sous-événements, puis finalisé (couleur + titre) au step_finish.
 """
 
+import datetime
 import logging
 import time
 
@@ -50,10 +51,11 @@ class MJScreen:
     def __init__(self, client: discord.Client) -> None:
         self._client = client
         # Accumulateurs par guild pour regrouper les events d'un step
-        self._step_events:    dict[str, list[dict]]           = {}
-        self._step_count:     dict[str, int]                  = {}
-        self._step_messages:  dict[str, discord.Message|None] = {}
-        self._step_last_edit: dict[str, float]                = {}
+        self._step_events:     dict[str, list[dict]]                    = {}
+        self._step_count:      dict[str, int]                           = {}
+        self._step_messages:   dict[str, discord.Message|None]          = {}
+        self._step_last_edit:  dict[str, float]                         = {}
+        self._step_started_at: dict[str, datetime.datetime]             = {}
 
     async def _get_channel(self, guild_id: str) -> discord.TextChannel | None:
         # Pas de cache — channels.yml peut être modifié à chaud par le MJ
@@ -101,7 +103,7 @@ class MJScreen:
     async def post_decision(self, guild_id: str, content: str) -> None:
         await self.post(guild_id, "decision", content)
 
-    def _build_step_embed(self, events: list[dict], step_n: int, *, in_progress: bool) -> discord.Embed:
+    def _build_step_embed(self, events: list[dict], step_n: int, *, in_progress: bool, started_at: datetime.datetime | None = None) -> discord.Embed:
         """Construit l'embed d'un step (live ou final)."""
         has_error = any(e["is_error"] for e in events if e["etype"] == "tool")
         has_tools = any(e["etype"] == "tool" for e in events)
@@ -132,11 +134,13 @@ class MJScreen:
                 lines.append(f"💬 {_truncate(e['text'], 400)}")
 
         desc = "\n".join(lines) or ("*(en cours…)*" if in_progress else "*(aucune activité)*")
-        return discord.Embed(
+        embed = discord.Embed(
             title=title,
             description=_truncate(desc, 4096),
             color=color,
         )
+        embed.timestamp = started_at or datetime.datetime.now(datetime.timezone.utc)
+        return embed
 
     async def _refresh_step(self, guild_id: str, *, final: bool) -> None:
         """Edit le message live du step en cours (debounced sauf si final)."""
@@ -152,7 +156,8 @@ class MJScreen:
 
         evs = self._step_events.get(guild_id, [])
         step_n = self._step_count.get(guild_id, 1)
-        embed = self._build_step_embed(evs, step_n, in_progress=not final)
+        started_at = self._step_started_at.get(guild_id)
+        embed = self._build_step_embed(evs, step_n, in_progress=not final, started_at=started_at)
         try:
             await msg.edit(embed=embed)
             self._step_last_edit[guild_id] = time.monotonic()
@@ -179,6 +184,7 @@ class MJScreen:
             self._step_events[guild_id] = []
             self._step_count[guild_id] = self._step_count.get(guild_id, 0) + 1
             self._step_last_edit.pop(guild_id, None)
+            self._step_started_at[guild_id] = datetime.datetime.now(datetime.timezone.utc)
 
             channel = await self._get_channel(guild_id)
             if not channel:
@@ -186,7 +192,7 @@ class MJScreen:
                 return
 
             step_n = self._step_count[guild_id]
-            embed = self._build_step_embed([], step_n, in_progress=True)
+            embed = self._build_step_embed([], step_n, in_progress=True, started_at=self._step_started_at[guild_id])
             try:
                 msg = await channel.send(embed=embed)
                 self._step_messages[guild_id] = msg
