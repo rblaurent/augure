@@ -46,7 +46,7 @@ Avant d'envoyer, vérifier :
 - **Pas de justification inutile** : si c'est clair, avancer.
 - **Pas de conclusions-thèses** : la dernière phrase ne résume pas, elle conclut.
 - **Pas de surqualification** : laisser les choses parler.
-- **Ton** : voix de MJ omniscient légèrement sardonique, pas IA qui explique.
+- **Ton** : voix de MJ omnisciente légèrement sardonique, pas IA qui explique.
 
 ---
 

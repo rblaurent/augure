@@ -76,10 +76,10 @@ La mort existe mais elle est tragicomique, jamais lourde.
 
 ---
 
-## Ce que le narrateur fait avec les émotions des joueurs
+## Ce que la narratrice fait avec les émotions des joueurs
 
-**[ ] Les ignore** — narrateur objectif, aucune interprétation
-**[x] Les amplifie** — si un joueur joue la peur, le narrateur la rend concrète et tangible
+**[ ] Les ignore** — narratrice objective, aucune interprétation
+**[x] Les amplifie** — si un joueur joue la peur, la narratrice la rend concrète et tangible
 **[ ] Les contredit** — crée de l'ironie (joueur confiant, monde indifférent)
 
 ---
