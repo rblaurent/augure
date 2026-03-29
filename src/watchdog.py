@@ -50,13 +50,28 @@ class WatchdogService:
                         self._memory.update_watchdog_last_message_id(channel_id, msg.id)
                     continue
 
-                new_messages: list[dict] = []
+                raw_messages: list = []
                 last_seen_id = None
                 async for msg in channel.history(limit=20, after=discord.Object(id=last_id)):
                     last_seen_id = msg.id
+                    raw_messages.append(msg)
+
+                # Any player message followed by an Augure reply is already handled
+                bot_reply_positions = {
+                    i for i, msg in enumerate(raw_messages)
+                    if msg.author == self._client.user
+                }
+                replied_to: set[int] = set()
+                for i, msg in enumerate(raw_messages):
+                    if msg.author != self._client.user:
+                        if any(j > i for j in bot_reply_positions):
+                            replied_to.add(msg.id)
+
+                new_messages: list[dict] = []
+                for msg in raw_messages:
                     if msg.author == self._client.user:
                         continue
-                    if msg.id in handled_ids:
+                    if msg.id in handled_ids or msg.id in replied_to:
                         continue
                     new_messages.append({
                         "id": str(msg.id),
